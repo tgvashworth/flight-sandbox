@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<meta charset=utf-8 />
+<title></title>
+
+<style type="text/css">
+    * {
+        box-sizing: border-box;
+    }
+    body {
+        font: 12px/1.5 sans-serif;
+    }
+    button {
+        display: block;
+        float: left;
+    }
+    .indicator {
+        display: inline-block;
+        vertical-align: middle;
+        height: 1em;
+        width: 1em;
+        background: green;
+    }
+    .indicator.bad {
+        background: red;
+    }
+</style>
+
+<!-- <button><span class="text">Click me!</span> <span class="indicator"></span></button> -->
+<!-- <button>Text!</button> -->
+<li class="todo-item"><span class="text"></span><input type="checkbox"></li>
+
+<script src="https://ajax.googleapis.com/ajax/libs/jquery/2.1.1/jquery.js"></script>
+<script src="https://flightjs.github.io/release/latest/flight.js"></script>
+
+<script type="text/javascript">
+function merge(target, source) {
+    return Object.keys(source).reduce(function (target, key) {
+        target[key] = source[key];
+        return target;
+    }, target);
+}
+
+function inspect(v) {
+    console.log(v);
+    return v;
+}
+
+function withState() {
+    this.initialState = function (newState) {
+        this.stateDef = merge(this.stateDef || {}, newState);
+    };
+
+    this.setState = function (newState) {
+        return merge(this.state, newState);
+    };
+
+    this.before('initialize', function () {
+        this.state = merge({}, this.stateDef || {});
+    });
+
+    this.after('initialize', function () {
+        setTimeout(function () {
+            this.setState(this.state);
+        }.bind(this), 0);
+    });
+}
+
+function withBatchedUpdates() {
+    var queue = [];
+    function go() {
+        while (queue.length) {
+            queue.shift().call(queue.shift());
+        }
+    }
+    this.batch = function (fn) {
+        var len = queue.length;
+        queue.push(fn, this);
+        if (!len) {
+            requestAnimationFrame(go);
+        }
+    };
+    this.batchify = function (fn) {
+        var ctx = this;
+        return function () {
+            return ctx.batch(fn);
+        };
+    };
+}
+
+function withTimeout() {
+    var timers = {};
+    this.timeout = function (fn, time) {
+        var ctx = this;
+        return setTimeout(this.batchify(fn), time);
+    };
+    this.interval = function (fn, time) {
+        var ctx = this;
+        return setInterval(this.batchify(fn), time);
+    };
+};
+
+function withRender() {
+    function callTo(o, method /*, args... */) {
+        var args = [].slice.call(arguments, 2);
+        return function () {
+            console.log('o method args', method, args);
+            return o[method].apply(o, args);
+        };
+    }
+
+    function call(fn) {
+        return fn();
+    }
+
+    this.setupRender = function (selector, config) {
+        if (!config) {
+            config = selector;
+            selector = undefined;
+        }
+        this.renderDefs = (this.renderDefs || []).concat({
+            selector: selector,
+            config: config
+        });
+    };
+
+    this.render = function () {
+        var newRenderStates = this.calculateRenderStates(this.renderConfigs);
+        var previousRenderStates = this._prevRenderStates || [];
+        newRenderStates
+            .reduce(function (actions, newRenderState, i) {
+                var $node = $(newRenderState.node || this.select(newRenderState.selector));
+                var previousRenderState = previousRenderStates[i];
+                return Object.keys(newRenderState.state)
+                    .reduce(function (actions, k) {
+                        var oldValue = (previousRenderState ? previousRenderState.state[k] : undefined);
+                        var newValue = newRenderState.state[k];
+                        if (oldValue !== newValue && typeof $node[k] === 'function') {
+                            return actions.concat(
+                                callTo($node, k, newValue)
+                            );
+                        }
+                        return actions;
+                    }, actions);
+            }.bind(this), [])
+            .forEach(call);
+        this._prevRenderStates = newRenderStates;
+    };
+
+    this.calculateRenderState = function (renderConfig) {
+        return Object.keys(renderConfig).reduce(function (memo, k) {
+            var value = renderConfig[k];
+            if (typeof value === 'function') {
+                memo[k] = value.call(this);
+            }
+            if (typeof value === 'object' && !Array.isArray(value)) {
+                memo[k] = this.calculateRenderState(value);
+            }
+            return memo;
+        }.bind(this), {});
+    };
+
+    this.calculateRenderStates = function (renderConfigs) {
+        return renderConfigs.map(function (renderConfig) {
+            var state = this.calculateRenderState(renderConfig.config);
+            return {
+                node: renderConfig.node,
+                selector: renderConfig.selector,
+                config: renderConfig.config,
+                state: state
+            };
+        }, this);
+    };
+
+    this.calculateRenderConfigs = function (renderDefs) {
+        return renderDefs.map(function (renderDef) {
+            return {
+                node: (!renderDef.selector ? this.node : undefined),
+                selector: renderDef.selector,
+                config: renderDef.config
+            };
+        }, this);
+    };
+
+    this.fromAttr = function (key) {
+        return function () {
+            return this.attr[key];
+        };
+    };
+
+    this.after('initialize', function () {
+        this.renderConfigs = this.calculateRenderConfigs(this.renderDefs);
+        this.render();
+    });
+}
+
+var Button = flight.component(withState, withBatchedUpdates, withRender, withTimeout, function button() {
+    this.attributes({
+        text: null,
+        contentSelector: '.text',
+        indicatorSelector: '.indicator'
+    });
+
+    this.initialState({
+        working: false,
+        counter: 0,
+        todos: []
+    });
+
+    this.setupRender({
+        attr: {
+            'data-counter': function () {
+                return this.state.counter;
+            },
+            disabled: function () {
+                return (this.state.counter % 10 === 0);
+            }
+        }
+    });
+
+    this.setupRender('contentSelector', {
+        text: function () {
+            return (this.state.working ? 'Working...' : this.attr.text + ' ' + this.state.counter)
+        }
+    });
+
+    this.setupRender('indicatorSelector', {
+        attr: {
+            class: function () {
+                return [
+                    'indicator',
+                    (this.state.counter % 3 === 0 ? 'bad' : '')
+                ].join(' ');
+            }
+        }
+    });
+
+    this.after('initialize', function () {
+        this.on('click', this.batchify(this.startWorking));
+        this.after('setState', this.batchify(this.render));
+        this.interval(this.incrementCounter, 300);
+    });
+
+    this.incrementCounter = function () {
+        this.setState({
+            counter: this.state.counter + 1
+        });
+    };
+
+    this.startWorking = function (e, data) {
+        this.setState({
+            working: !this.state.working
+        });
+    };
+});
+
+var Button = flight.component(withRender, function button() {
+    this.attributes({
+        text: null,
+        actionEvent: 'buttonClicked'
+    });
+
+    this.setupRender({
+        text: this.fromAttr('text')
+    });
+
+    this.after('initialize', function () {
+        this.on('click', this.trigger.bind(this, this.attr.actionEvent));
+    });
+});
+
+var TodoItem = flight.component(withRender, function todoItem() {
+    this.attributes({
+        text: null,
+        done: false,
+        thingerSelector: '',
+        thingerClass: ''
+    });
+
+    this.setupRender('textSelector', {
+        text: this.fromAttr('text')
+    });
+
+    this.setupRender('checkboxSelector', {
+        attr: {
+            checked: this.fromAttr('done')
+        }
+    });
+});
+
+// var interval = setInterval(function () {
+document.addEventListener('DOMContentLoaded', function () {
+    // var button = document.createElement('button');
+    // document.body.appendChild(button);
+    // Button.attachTo('button', {
+    //   text: "Click me!",
+    //   actionEvent: "buttonWazClickedBlud"
+    // });
+    TodoItem.attachTo('.todo-item', {
+      text: "Sup!",
+      done: true
+    });
+});
+// }, 1000);
+
+</script>
