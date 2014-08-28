@@ -25,9 +25,14 @@
     }
 </style>
 
-<!-- <button><span class="text">Click me!</span> <span class="indicator"></span></button> -->
+<button><span class="text">Click me!</span> <span class="indicator"></span></button>
+<button><span class="text">Click me!</span> <span class="indicator"></span></button>
+<button><span class="text">Click me!</span> <span class="indicator"></span></button>
+<button><span class="text">Click me!</span> <span class="indicator"></span></button>
+<button><span class="text">Click me!</span> <span class="indicator"></span></button>
+<button><span class="text">Click me!</span> <span class="indicator"></span></button>
 <!-- <button>Text!</button> -->
-<li class="todo-item"><span class="text"></span><input type="checkbox"></li>
+<!-- <li class="todo-item"><span class="text"></span><input type="checkbox"></li> -->
 
 <script src="https://ajax.googleapis.com/ajax/libs/jquery/2.1.1/jquery.js"></script>
 <script src="https://flightjs.github.io/release/latest/flight.js"></script>
@@ -237,7 +242,7 @@ var Button = flight.component(withState, withBatchedUpdates, withRender, withTim
     this.after('initialize', function () {
         this.on('click', this.batchify(this.startWorking));
         this.after('setState', this.batchify(this.render));
-        this.interval(this.incrementCounter, 300);
+        this.interval(this.incrementCounter, Math.random() * 500 + 300);
     });
 
     this.incrementCounter = function () {
@@ -253,20 +258,20 @@ var Button = flight.component(withState, withBatchedUpdates, withRender, withTim
     };
 });
 
-var Button = flight.component(withRender, function button() {
-    this.attributes({
-        text: null,
-        actionEvent: 'buttonClicked'
-    });
+// var Button = flight.component(withRender, function button() {
+//     this.attributes({
+//         text: null,
+//         actionEvent: 'buttonClicked'
+//     });
 
-    this.setupRender({
-        text: this.fromAttr('text')
-    });
+//     this.setupRender({
+//         text: this.fromAttr('text')
+//     });
 
-    this.after('initialize', function () {
-        this.on('click', this.trigger.bind(this, this.attr.actionEvent));
-    });
-});
+//     this.after('initialize', function () {
+//         this.on('click', this.trigger.bind(this, this.attr.actionEvent));
+//     });
+// });
 
 var TodoItem = flight.component(withRender, function todoItem() {
     this.attributes({
@@ -291,14 +296,14 @@ var TodoItem = flight.component(withRender, function todoItem() {
 document.addEventListener('DOMContentLoaded', function () {
     // var button = document.createElement('button');
     // document.body.appendChild(button);
-    // Button.attachTo('button', {
-    //   text: "Click me!",
-    //   actionEvent: "buttonWazClickedBlud"
-    // });
-    TodoItem.attachTo('.todo-item', {
-      text: "Sup!",
-      done: true
+    Button.attachTo('button', {
+      text: "Click me!",
+      actionEvent: "buttonWazClickedBlud"
     });
+    // TodoItem.attachTo('.todo-item', {
+    //   text: "Sup!",
+    //   done: true
+    // });
 });
 // }, 1000);
 
