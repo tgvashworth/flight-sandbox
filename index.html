@@ -25,17 +25,28 @@
     }
 </style>
 
+<!-- <button><span class="text">Click me!</span> <span class="indicator"></span></button>
 <button><span class="text">Click me!</span> <span class="indicator"></span></button>
 <button><span class="text">Click me!</span> <span class="indicator"></span></button>
 <button><span class="text">Click me!</span> <span class="indicator"></span></button>
 <button><span class="text">Click me!</span> <span class="indicator"></span></button>
-<button><span class="text">Click me!</span> <span class="indicator"></span></button>
-<button><span class="text">Click me!</span> <span class="indicator"></span></button>
-<!-- <button>Text!</button> -->
-<!-- <li class="todo-item"><span class="text"></span><input type="checkbox"></li> -->
+<button><span class="text">Click me!</span> <span class="indicator"></span></button> -->
 
-<script src="https://ajax.googleapis.com/ajax/libs/jquery/2.1.1/jquery.js"></script>
-<script src="https://flightjs.github.io/release/latest/flight.js"></script>
+<ul class="todo-list"></ul>
+
+<script type="template" id="template-todo-list-item">
+    <li class="todo-item"></li>
+</script>
+
+<script type="template" id="template-todo-list-item-content">
+    <div class="todo-list-item-content">
+        <span class="todo-list-item-content__text"></span>
+        <input class="todo-list-item-content__done" type="checkbox">
+    </div>
+</script>
+
+<script src="jquery.min.js"></script>
+<script src="flight.js"></script>
 
 <script type="text/javascript">
 function merge(target, source) {
@@ -50,6 +61,79 @@ function inspect(v) {
     return v;
 }
 
+var withChildComponents = (function () {
+    'use strict';
+
+    var teardownEventCount = 0;
+
+    function withBoundLifecycle() {
+        this.defaultAttrs({
+            teardownOn: ''
+        });
+
+        /**
+         * If we were given a teardownOn event then listen out for it to teardown.
+         */
+        this.after('initialize', function () {
+            if (this.attr.teardownOn) {
+                if (this.attr.teardownOn === this.childTeardownEvent) {
+                    throw new Error('Component initialized to listen for its own teardown event.');
+                }
+                this.on(document, this.attr.teardownOn, function () {
+                    this.teardown();
+                });
+            }
+        });
+    }
+
+    function withChildComponents() {
+        /**
+         * Give every component that uses this mixin a new, unique childTeardownEvent
+         */
+        this.before('initialize', function () {
+            this.childTeardownEvent =
+                this.childTeardownEvent ||
+                withChildComponents.nextTeardownEvent();
+        });
+
+        /**
+         * Before this component's teardown, tell all the children to teardown
+         */
+        this.before('teardown', function () {
+            this.trigger(this.childTeardownEvent);
+        });
+
+        /**
+         * Utility method for attaching a component with teardownOn.
+         *
+         * Takes Component (with attachTo method) plus destination and attrs arguments, which should
+         * be the same as in a normal attachTo call.
+         */
+        this.attachChild = function (Component, destination, attrs) {
+            attrs = attrs || {};
+            if (!attrs.teardownOn) {
+                attrs.teardownOn = this.childTeardownEvent;
+            }
+            var mixins = Component.prototype.mixedIn || [];
+            var isMixedIn = (mixins.indexOf(withBoundLifecycle) > -1) ? true : false;
+            (isMixedIn ?
+                Component :
+                Component.mixin(withBoundLifecycle)).attachTo(destination, attrs);
+        };
+
+    }
+
+    withChildComponents.nextTeardownEvent = function () {
+        teardownEventCount += 1;
+        return '_teardownEvent' + teardownEventCount;
+    };
+
+    // Export the child lifecycle mixin
+    withChildComponents.withBoundLifecycle = withBoundLifecycle;
+
+    return withChildComponents;
+}());
+
 function withState() {
     this.initialState = function (newState) {
         this.stateDef = merge(this.stateDef || {}, newState);
@@ -59,11 +143,21 @@ function withState() {
         return merge(this.state, newState);
     };
 
-    this.before('initialize', function () {
-        this.state = merge({}, this.stateDef || {});
-    });
+    this.fromState = function (key) {
+        return function () {
+            return this.state[key]
+        };
+    };
 
     this.after('initialize', function () {
+        var stateDef = (this.stateDef || {});
+        var ctx = this;
+        this.state = Object.keys(stateDef).reduce(function (state, k) {
+            var value = stateDef[k];
+            state[k] = (typeof value === 'function' ? value.call(ctx) : value);
+            return state;
+        }, {});
+
         setTimeout(function () {
             this.setState(this.state);
         }.bind(this), 0);
@@ -84,10 +178,10 @@ function withBatchedUpdates() {
             requestAnimationFrame(go);
         }
     };
-    this.batchify = function (fn) {
+    this.batchify = function (method) {
         var ctx = this;
         return function () {
-            return ctx.batch(fn);
+            return ctx.batch(ctx[method]);
         };
     };
 }
@@ -108,7 +202,6 @@ function withRender() {
     function callTo(o, method /*, args... */) {
         var args = [].slice.call(arguments, 2);
         return function () {
-            console.log('o method args', method, args);
             return o[method].apply(o, args);
         };
     }
@@ -198,6 +291,40 @@ function withRender() {
     });
 }
 
+var withTemplate = (function () {
+    var cache = {};
+    return function withTemplate() {
+        this.renderTemplate = function (template) {
+            cache[template] = (
+                cache[template] ||
+                document.getElementById('template-' + template).textContent.trim()
+            );
+
+            var wrapper = document.createElement('div');
+            wrapper.innerHTML = cache[template];
+            return wrapper.firstChild;
+        };
+    };
+}());
+
+var makeWithAutoRenderedTemplate = (function () {
+    return function (autoRenderTemplate) {
+        return function withAutoRenderedTemplate() {
+            this.after('initialize', function () {
+                this.node.appendChild(
+                    this.renderTemplate(autoRenderTemplate)
+                );
+            });
+        };
+    };
+}());
+
+var withStateLinkedToRender = function () {
+    this.after('initialize', function () {
+        this.after('setState', this.batchify('render'));
+    });
+};
+
 var Button = flight.component(withState, withBatchedUpdates, withRender, withTimeout, function button() {
     this.attributes({
         text: null,
@@ -240,8 +367,8 @@ var Button = flight.component(withState, withBatchedUpdates, withRender, withTim
     });
 
     this.after('initialize', function () {
-        this.on('click', this.batchify(this.startWorking));
-        this.after('setState', this.batchify(this.render));
+        this.on('click', this.batchify('startWorking'));
+        this.after('setState', this.batchify('render'));
         this.interval(this.incrementCounter, Math.random() * 500 + 300);
     });
 
@@ -258,53 +385,137 @@ var Button = flight.component(withState, withBatchedUpdates, withRender, withTim
     };
 });
 
-// var Button = flight.component(withRender, function button() {
-//     this.attributes({
-//         text: null,
-//         actionEvent: 'buttonClicked'
-//     });
-
-//     this.setupRender({
-//         text: this.fromAttr('text')
-//     });
-
-//     this.after('initialize', function () {
-//         this.on('click', this.trigger.bind(this, this.attr.actionEvent));
-//     });
-// });
-
-var TodoItem = flight.component(withRender, function todoItem() {
+var Button = flight.component(withRender, withState, withBatchedUpdates, withTimeout, function button() {
     this.attributes({
         text: null,
-        done: false,
-        thingerSelector: '',
-        thingerClass: ''
+        actionEvent: 'buttonClicked',
+        bgcolor: 'red',
+        contentSelector: '.content'
     });
 
-    this.setupRender('textSelector', {
-        text: this.fromAttr('text')
+    this.initialState({
+        clicks: 0
     });
 
-    this.setupRender('checkboxSelector', {
+    this.setupRender({
         attr: {
-            checked: this.fromAttr('done')
+            'data-action-event': this.fromAttr('actionEvent'),
+            'data-clicks': function () {
+                return this.state.clicks;
+            }
         }
     });
+
+    this.setupRender('contentSelector', {
+        text: function () {
+            return this.attr.text + ' ' + this.state.clicks
+        }
+    });
+
+    this.after('initialize', function () {
+        this.on('click', this.handleClick);
+        this.after('setState', this.batchify('render'));
+        this.interval(this.handleClick, Math.random () * 300 + 300);
+    });
+
+    this.handleClick = function () {
+        this.setState({
+            clicks: this.state.clicks + 1
+        })
+    };
 });
+
+var TodoList = flight.component(
+    withTemplate,
+    withBatchedUpdates,
+    withChildComponents,
+    function todoList() {
+        this.attributes({
+            todos: null
+        });
+
+        this.after('initialize', function () {
+            this.attr.todos.forEach(this.addTodo, this);
+        });
+
+        this.addTodo = function (todo) {
+            var node = this.renderTemplate('todo-list-item');
+            this.node.appendChild(node);
+            TodoItem.attachTo(node, todo);
+        };
+    }
+);
+
+var TodoItem = flight.component(
+    withTemplate,
+    makeWithAutoRenderedTemplate('todo-list-item-content'),
+    withState,
+    withRender,
+    withStateLinkedToRender,
+    withBatchedUpdates,
+    function todoItem() {
+        this.attributes({
+            text: null,
+            done: false,
+            textSelector: '.todo-list-item-content__text',
+            checkboxSelector: '.todo-list-item-content__done'
+        });
+
+        this.initialState({
+            done: this.fromAttr('done')
+        });
+
+        this.setupRender('textSelector', {
+            text: this.fromAttr('text')
+        });
+
+        this.setupRender('checkboxSelector', {
+            attr: {
+                checked: this.fromState('done')
+            }
+        });
+
+        this.after('initialize', function () {
+            this.on('change', {
+                checkboxSelector: this.handleClick
+            });
+        });
+
+        this.handleClick = function (event) {
+            this.setState({
+                done: event.target.checked
+            });
+        };
+    }
+);
 
 // var interval = setInterval(function () {
 document.addEventListener('DOMContentLoaded', function () {
     // var button = document.createElement('button');
     // document.body.appendChild(button);
-    Button.attachTo('button', {
-      text: "Click me!",
-      actionEvent: "buttonWazClickedBlud"
-    });
-    // TodoItem.attachTo('.todo-item', {
-    //   text: "Sup!",
-    //   done: true
+    // Button.attachTo('button', {
+    //     text: "Click me!"
     // });
+    TodoList.attachTo('.todo-list', {
+      todos: [
+        { text: 'Make Flight amazing', done: false },
+        { text: 'Drink more water', done: true },
+        { text: 'Think about lunch', done: true },
+        { text: 'Have lunch', done: false }
+      ]
+    });
 });
 // }, 1000);
 
+/**
+ * Random Ideas
+ *
+ * Higher order mixins are interesting — could they be used for all the state & attrs stuff:
+ *     makeWithState({ ... }),
+ *     makeWithAttributes({ ... })
+ *
+ *
+ */
+
 </script>
+
