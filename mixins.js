@@ -318,3 +318,51 @@ function withProvideResource() {
         }, {}));
     };
 }
+
+
+/**
+ * Event and element bindings
+ */
+
+function withReferences() {
+
+    this.around('select', function(select, name) {
+        if (typeof this.attr[name] != 'undefined') return select(name);
+        return this.$node.find("[data-ref=" + name + "]");
+    });
+
+}
+
+function withDeclaritiveHandlers() {
+
+    this.handlers = {};
+
+    this.attachDelegatedHandler = function(action, type, handler) {
+        if (typeof this.handlers[type] == 'undefined') {
+            this.handlers[type] = {};
+            this.on(type, flight.utils.delegate(this.handlers[type]));
+        }
+
+        this.handlers[type]["[data-action=" + action + "]"] = handler;
+    }
+
+    this.createHandler = function(i, node) {
+        var actions = $(node).attr('data-action');
+
+        actions.split(';').forEach(function(action) {
+            var parts = action.split(':');
+
+            if (parts.length == 1) {
+                this.attachDelegatedHandler(action, 'click', this[parts[0]]);
+                return;
+            }
+
+            this.attachDelegatedHandler(action, parts[0], this[parts[1]]);
+        }, this);
+    }
+
+    this.after('initialize', function() {
+        this.$node.find('[data-action]').each(this.createHandler.bind(this));
+    });
+
+}
