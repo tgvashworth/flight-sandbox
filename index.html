@@ -24,7 +24,6 @@
         background: red;
     }
 </style>
-
 <!-- <button><span class="text">Click me!</span> <span class="indicator"></span></button>
 <button><span class="text">Click me!</span> <span class="indicator"></span></button>
 <button><span class="text">Click me!</span> <span class="indicator"></span></button>
@@ -33,9 +32,9 @@
 <button><span class="text">Click me!</span> <span class="indicator"></span></button> -->
 
 <div class="todo-list">
-    <ul></ul>
+    <ul data-ref="list"></ul>
     <div>
-        <input class="todo-list__new-text"/><button class="todo-list__create">+</button>
+        <input data-ref="newText"/><button data-ref="newButton" data-action="handleCreateTodo">+</button>
     </div>
 </div>
 

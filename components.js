@@ -37,21 +37,11 @@ var TodoList = flight.component(
     withChildComponents,
     withResources,
     function todoList() {
-        this.attributes({
-            listSelector: 'ul',
-            createTodoSelector: '.todo-list__create',
-            newTodoTextSelector: '.todo-list__new-text',
-        });
-
         this.initialState({
             todos: this.fromResource('todos')
         });
 
         this.after('initialize', function () {
-            this.on('click', {
-                createTodoSelector: this.handleCreateTodo
-            });
-
             this.on(document, 'todos-changed', function (e) {
                 this.setState({
                     todos: this.resource('todos')
@@ -63,19 +53,19 @@ var TodoList = flight.component(
 
         this.handleCreateTodo = function (e) {
             this.trigger('uiCreateTodo', {
-                text: this.select('newTodoTextSelector').val()
+                text: this.select('newText').val()
             });
         };
 
         this.render = function () {
             this.trigger(this.childTeardownEvent);
-            this.select('listSelector').html('');
+            this.select('list').html('');
             this.state.todos.forEach(this.addTodoItem, this);
         };
 
         this.addTodoItem = function (todo) {
             var node = this.renderTemplate('todo-list-item');
-            this.select('listSelector').append(node);
+            this.select('list').append(node);
             this.attachChild(TodoItem, node, todo);
         };
     }
