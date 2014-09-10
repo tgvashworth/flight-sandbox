@@ -98,6 +98,14 @@ function withState() {
         };
     };
 
+    this.toState = function (key) {
+        return function (data) {
+            var state = {};
+            state[key] = data;
+            this.setState(state);
+        };
+    };
+
     this.after('initialize', function () {
         var stateDef = (this.stateDef || {});
         var ctx = this;
@@ -235,7 +243,7 @@ function withRender() {
     };
 
     this.after('initialize', function () {
-        this.renderConfigs = this.calculateRenderConfigs(this.renderDefs);
+        this.renderConfigs = this.calculateRenderConfigs(this.renderDefs || []);
         this.render();
     });
 }
@@ -291,31 +299,48 @@ function asSingleton(name) {
  * Resources
  */
 
-var resourceRegistry = {};
-function withResources() {
-    this.resource = function (id) {
-        return resourceRegistry[id];
-    };
+var _resources = {};
+var _resourceLinks = {};
 
-    this.fromResource = function (id) {
-        return function () {
-            console.log('== fromResource %s ========================', id);
-            return resourceRegistry[id];
+function getLink(k) {
+    return (_resourceLinks[k] = _resourceLinks[k] || {
+        linked: []
+    });
+}
+
+function makeWithProvideResources(keys) {
+    return function withProvideResources() {
+        this.setResources = function (newData) {
+            var filteredData =
+                Object.keys(newData)
+                    .filter(function (k) {
+                        return (keys.indexOf(k) > -1);
+                    }).reduce(function (result, k) {
+                        result[k] = newData[k];
+                        return result;
+                    }, {});
+            var changedKeys = Object.keys(filteredData);
+            var result = merge(
+                _resources,
+                filteredData
+            );
+            changedKeys.forEach(function (k) {
+                getLink(k).linked.forEach(function (link) {
+                    link.cb.call(link.ctx, result[k]);
+                });
+            })
+            return result;
         };
     };
 }
-function withProvideResource() {
-    this.provideResource = function (id, data) {
-        return (resourceRegistry[id] = data);
-
-        return (resourceRegistry[id] = Object.keys(data).reduce(function (result, key) {
-            result[key] = (
-                typeof data[key] === 'function' ?
-                    data[key].bind(instance) :
-                    data[key]
-            );
-            return result;
-        }, {}));
+function makeWithResources(keys) {
+    return function withResources() {
+        this.linkResource = function (k, cb) {
+            if (keys.indexOf(k) === -1) {
+                throw Error('Cannot link to resource ' + k);
+            }
+            getLink(k).linked.push({ cb: cb, ctx: this });
+        };
     };
 }
 
@@ -325,17 +350,20 @@ function withProvideResource() {
  */
 
 function withReferences() {
-
     this.around('select', function(select, name) {
         if (typeof this.attr[name] != 'undefined') return select(name);
         return this.$node.find("[data-ref=" + name + "]");
     });
-
 }
 
 function withDeclaritiveHandlers() {
+    this.before('initialize', function () {
+        this.handlers = {};
+    });
 
-    this.handlers = {};
+    this.after('initialize', function() {
+        this.$node.find('[data-action]').each(this.createHandler.bind(this));
+    });
 
     this.attachDelegatedHandler = function(action, type, handler) {
         if (typeof this.handlers[type] == 'undefined') {
@@ -343,7 +371,7 @@ function withDeclaritiveHandlers() {
             this.on(type, flight.utils.delegate(this.handlers[type]));
         }
 
-        this.handlers[type]["[data-action=" + action + "]"] = handler;
+        this.handlers[type]["[data-action~=\"" + action + "\"]"] = handler;
     }
 
     this.createHandler = function(i, node) {
@@ -360,9 +388,4 @@ function withDeclaritiveHandlers() {
             this.attachDelegatedHandler(action, parts[0], this[parts[1]]);
         }, this);
     }
-
-    this.after('initialize', function() {
-        this.$node.find('[data-action]').each(this.createHandler.bind(this));
-    });
-
 }

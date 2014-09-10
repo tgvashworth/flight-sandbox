@@ -24,17 +24,12 @@
         background: red;
     }
 </style>
-<!-- <button><span class="text">Click me!</span> <span class="indicator"></span></button>
-<button><span class="text">Click me!</span> <span class="indicator"></span></button>
-<button><span class="text">Click me!</span> <span class="indicator"></span></button>
-<button><span class="text">Click me!</span> <span class="indicator"></span></button>
-<button><span class="text">Click me!</span> <span class="indicator"></span></button>
-<button><span class="text">Click me!</span> <span class="indicator"></span></button> -->
 
 <div class="todo-list">
+    <div>Done: <span data-ref="doneCounter"></span></div>
     <ul data-ref="list"></ul>
     <div>
-        <input data-ref="newText"/><button data-ref="newButton" data-action="handleCreateTodo">+</button>
+        <input data-ref="newText" data-action="keypress:handleKeyPress"/><button data-ref="newButton" data-action="handleCreateTodo">+</button>
     </div>
 </div>
 
@@ -44,8 +39,8 @@
 
 <script type="template" id="template-todo-list-item-content">
     <div class="todo-list-item-content">
-        <span class="todo-list-item-content__text"></span>
-        <input class="todo-list-item-content__done" type="checkbox">
+        <span data-ref="todoText"></span>
+        <input data-ref="todoDone" data-action="handleDoneChanged" type="checkbox">
     </div>
 </script>
 

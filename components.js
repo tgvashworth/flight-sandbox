@@ -1,113 +1,155 @@
 var Todos = flight.component(
     withState,
-    withProvideResource,
-    withResources,
+    makeWithProvideResources(['todos']),
     asSingleton('todos'),
     function () {
         this.initialState({
             todos: [
-                { text: 'Make Flight amazing', done: false },
-                { text: 'Drink more water', done: true },
-                { text: 'Think about lunch', done: true },
-                { text: 'Have lunch', done: false }
+                { id: 'Uda', text: 'Make Flight amazing', done: false },
+                { id: 'ctS', text: 'Drink more water', done: true },
+                { id: 'LKP', text: 'Think about lunch', done: true },
+                { id: 'Fmg', text: 'Have lunch', done: false }
             ]
         });
 
         this.after('initialize', function () {
-            this.provideResource('todos', this.state.todos);
-
-            this.on('uiCreateTodo', function (e, todo) {
+            this.on('todoDone', function (e, data) {
                 this.setState({
-                    todos: this.state.todos.concat([todo])
+                    todos: this.state.todos.map(function (todo) {
+                        if (todo.id === data.id) {
+                            todo.done = data.done;
+                        }
+                        return todo;
+                    })
+                });
+            });
+            this.on('todoNew', function (e, data) {
+                this.setState({
+                    todos: this.state.todos.concat([{
+                        text: data.text,
+                        id: '' + ~~(Math.random() * 10000),
+                        done: false
+                    }])
                 });
             });
 
             this.after('setState', function () {
-                this.provideResource('todos', this.state.todos);
-                this.trigger('todos-changed');
+                this.setResources(this.state);
             });
         });
     }
 );
 
 var TodoList = flight.component(
+    makeWithResources(['todos']),
     withTemplate,
     withState,
+    withRender,
+    withStateLinkedToRender,
     withBatchedUpdates,
     withChildComponents,
-    withResources,
+    withReferences,
+    withDeclaritiveHandlers,
     function todoList() {
         this.initialState({
-            todos: this.fromResource('todos')
+            todos: [],
+            rendered: {}
         });
 
         this.after('initialize', function () {
-            this.on(document, 'todos-changed', function (e) {
-                this.setState({
-                    todos: this.resource('todos')
-                });
-            });
-
-            this.after('setState', this.batchify(this.render));
+            this.linkResource('todos', this.toState('todos'));
         });
 
-        this.handleCreateTodo = function (e) {
-            this.trigger('uiCreateTodo', {
+        this.setupRender('doneCounter', {
+            text: function () {
+                return this.state.todos.reduce(function (sum, todo) {
+                    return sum + (todo.done ? 1 : 0);
+                }, 0);
+            }
+        })
+
+        this.after('render', function () {
+            this.state.todos.forEach(this.makeTodo, this);
+        });
+
+        this.makeTodo = function (todo) {
+            var $node = this.state.rendered[todo.id];
+            if (!$node) {
+                $node = $(this.renderTemplate('todo-list-item'));
+                this.select('list').append($node);
+                this.attachChild(TodoItem, $node, todo);
+                this.state.rendered[todo.id] = $node;
+                this.setState({
+                    rendered: this.state.rendered
+                });
+            }
+        };
+
+        this.handleCreateTodo = function () {
+            this.trigger('todoNew', {
                 text: this.select('newText').val()
             });
+            this.select('newText').focus().val('');
         };
 
-        this.render = function () {
-            this.trigger(this.childTeardownEvent);
-            this.select('list').html('');
-            this.state.todos.forEach(this.addTodoItem, this);
-        };
-
-        this.addTodoItem = function (todo) {
-            var node = this.renderTemplate('todo-list-item');
-            this.select('list').append(node);
-            this.attachChild(TodoItem, node, todo);
+        this.handleKeyPress = function (e) {
+            if (e.keyCode === 13) {
+                this.handleCreateTodo(e);
+            }
         };
     }
 );
 
 var TodoItem = flight.component(
+    makeWithResources(['todos']),
     withTemplate,
     makeWithAutoRenderedTemplate('todo-list-item-content'),
     withState,
     withRender,
     withStateLinkedToRender,
     withBatchedUpdates,
+    withReferences,
+    withDeclaritiveHandlers,
     function todoItem() {
         this.attributes({
+            id: null,
             text: null,
-            done: false,
-            textSelector: '.todo-list-item-content__text',
-            checkboxSelector: '.todo-list-item-content__done'
+            done: false
         });
 
         this.initialState({
             done: this.fromAttr('done')
         });
 
-        this.setupRender('textSelector', {
+        this.setupRender({
+            attr: {
+                'data-ref': this.fromAttr('id')
+            }
+        });
+
+        this.setupRender('todoText', {
             text: this.fromAttr('text')
         });
 
-        this.setupRender('checkboxSelector', {
+        this.setupRender('todoDone', {
             attr: {
                 checked: this.fromState('done')
             }
         });
 
         this.after('initialize', function () {
-            this.on('change', {
-                checkboxSelector: this.handleClick
+            this.linkResource('todos', function (todos) {
+                todos.filter(function (todo) {
+                    return (todo.id === this.attr.id);
+                }, this).forEach(function (todo) {
+                    this.setState(todo)
+                }, this);
             });
         });
 
-        this.handleClick = function (event) {
-            this.setState({
+        this.handleDoneChanged = function (event) {
+            this.trigger('todoDone', {
+                id: this.attr.id,
                 done: event.target.checked
             });
         };
