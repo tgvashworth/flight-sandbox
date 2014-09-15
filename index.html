@@ -2,34 +2,18 @@
 <meta charset=utf-8 />
 <title></title>
 
-<style type="text/css">
-    * {
-        box-sizing: border-box;
-    }
-    body {
-        font: 12px/1.5 sans-serif;
-    }
-    button {
-        display: block;
-        float: left;
-    }
-    .indicator {
-        display: inline-block;
-        vertical-align: middle;
-        height: 1em;
-        width: 1em;
-        background: green;
-    }
-    .indicator.bad {
-        background: red;
-    }
-</style>
+<meta name="viewport" content="width=device-width">
+<link rel="stylesheet" type="text/css" href="style.css">
 
 <div class="todo-list">
-    <div>Done: <span data-ref="doneCounter"></span></div>
+    <div class="todo-list__title">
+        <strong data-ref="todoCounter">0</strong> todo
+    </div>
     <ul data-ref="list"></ul>
-    <div>
-        <input data-ref="newText" data-action="keypress:handleKeyPress"/><button data-ref="newButton" data-action="handleCreateTodo">+</button>
+    <div class="todo-list__new">
+        <input data-ref="newText" data-action="keypress:handleKeyPress" type="text"/>
+        <input data-ref="newDone" type="checkbox"/>
+        <button data-ref="newButton" data-action="handleCreateTodo">+</button>
     </div>
 </div>
 
@@ -38,13 +22,17 @@
 </script>
 
 <script type="template" id="template-todo-list-item-content">
-    <div class="todo-list-item-content">
-        <span data-ref="todoText"></span>
-        <input data-ref="todoDone" data-action="handleDoneChanged" type="checkbox">
+    <div class="todo-list-item-content" data-action="handleDoneChanged">
+        <label>
+            <input data-ref="todoDone" type="checkbox">
+            <span data-ref="todoText" data-strike></span>
+            <span data-ref="todoRelativeTime"></span>
+        </label>
     </div>
 </script>
 
 <script src="jquery.min.js"></script>
+<script src="moment.min.js"></script>
 <script src="flight.js"></script>
 <script src="mixins.js"></script>
 <script src="components.js"></script>
@@ -62,6 +50,7 @@ document.addEventListener('DOMContentLoaded', function () {
  *     makeWithState({ ... }),
  *     makeWithAttributes({ ... })
  *
+ * Auto put data attributes in declarative events
  *
  */
 

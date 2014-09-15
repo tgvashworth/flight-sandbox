@@ -1,3 +1,5 @@
+'use strict';
+
 function merge(target, source) {
     return Object.keys(source).reduce(function (target, key) {
         target[key] = source[key];
@@ -9,6 +11,10 @@ function inspect(v) {
     console.log(v);
     return v;
 }
+
+/**
+ * Child components
+ */
 
 var withChildComponents = (function () {
     'use strict';
@@ -83,6 +89,11 @@ var withChildComponents = (function () {
     return withChildComponents;
 }());
 
+/**
+ * State
+ */
+
+// DONE
 function withState() {
     this.initialState = function (newState) {
         this.stateDef = merge(this.stateDef || {}, newState);
@@ -121,39 +132,9 @@ function withState() {
     });
 }
 
-function withBatchedUpdates() {
-    var queue = [];
-    function go() {
-        while (queue.length) {
-            queue.shift().call(queue.shift());
-        }
-    }
-    this.batch = function (fn) {
-        var len = queue.length;
-        queue.push(fn, this);
-        if (!len) {
-            requestAnimationFrame(go);
-        }
-    };
-    this.batchify = function (method) {
-        var ctx = this;
-        return function () {
-            return ctx.batch(ctx[method]);
-        };
-    };
-}
-
-function withTimeout() {
-    var timers = {};
-    this.timeout = function (fn, time) {
-        var ctx = this;
-        return setTimeout(this.batchify(fn), time);
-    };
-    this.interval = function (fn, time) {
-        var ctx = this;
-        return setInterval(this.batchify(fn), time);
-    };
-};
+/**
+ * Render
+ */
 
 function withRender() {
     function callTo(o, method /*, args... */) {
@@ -248,6 +229,10 @@ function withRender() {
     });
 }
 
+/**
+ * Templating
+ */
+
 var withTemplate = (function () {
     var cache = {};
     return function withTemplate() {
@@ -276,7 +261,11 @@ var makeWithAutoRenderedTemplate = (function () {
     };
 }());
 
-var withStateLinkedToRender = function () {
+/**
+ * Misc
+ */
+
+function withStateLinkedToRender() {
     this.after('initialize', function () {
         this.after('setState', this.batchify('render'));
     });
@@ -295,6 +284,40 @@ function asSingleton(name) {
     };
 }
 
+function withTimeout() {
+    var timers = {};
+    this.timeout = function (fn, time) {
+        var ctx = this;
+        return setTimeout(this.batchify(fn), time);
+    };
+    this.interval = function (fn, time) {
+        var ctx = this;
+        return setInterval(this.batchify(fn), time);
+    };
+}
+
+function withBatchedUpdates() {
+    var queue = [];
+    function go() {
+        while (queue.length) {
+            queue.shift().call(queue.shift());
+        }
+    }
+    this.batch = function (fn) {
+        var len = queue.length;
+        queue.push(fn, this);
+        if (!len) {
+            requestAnimationFrame(go);
+        }
+    };
+    this.batchify = function (method) {
+        var ctx = this;
+        return function () {
+            return ctx.batch(ctx[method]);
+        };
+    };
+}
+
 /**
  * Resources
  */
@@ -302,7 +325,7 @@ function asSingleton(name) {
 var _resources = {};
 var _resourceLinks = {};
 
-function getLink(k) {
+function getResourceLink(k) {
     return (_resourceLinks[k] = _resourceLinks[k] || {
         linked: []
     });
@@ -325,7 +348,7 @@ function makeWithProvideResources(keys) {
                 filteredData
             );
             changedKeys.forEach(function (k) {
-                getLink(k).linked.forEach(function (link) {
+                getResourceLink(k).linked.forEach(function (link) {
                     link.cb.call(link.ctx, result[k]);
                 });
             })
@@ -339,7 +362,7 @@ function makeWithResources(keys) {
             if (keys.indexOf(k) === -1) {
                 throw Error('Cannot link to resource ' + k);
             }
-            getLink(k).linked.push({ cb: cb, ctx: this });
+            getResourceLink(k).linked.push({ cb: cb, ctx: this });
         };
     };
 }
@@ -356,7 +379,7 @@ function withReferences() {
     });
 }
 
-function withDeclaritiveHandlers() {
+function withDeclarativeHandlers() {
     this.before('initialize', function () {
         this.handlers = {};
     });
@@ -388,4 +411,38 @@ function withDeclaritiveHandlers() {
             this.attachDelegatedHandler(action, parts[0], this[parts[1]]);
         }, this);
     }
+}
+
+/**
+ * Storage
+ */
+
+function makeWithStorage(keys) {
+    return function withStorage() {
+        this.setStorage = function (newData) {
+            var filteredData =
+                Object.keys(newData)
+                    .filter(function (k) {
+                        return (keys.indexOf(k) > -1);
+                    }).reduce(function (result, k) {
+                        if (typeof newData[k] !== 'undefined') {
+                            result[k] = JSON.stringify(newData[k]);
+                        }
+                        return result;
+                    }, {});
+            var result = merge(
+                localStorage,
+                filteredData
+            );
+            return filteredData;
+        };
+        this.fromStorage = function (key, def) {
+            return function () {
+                try {
+                    return JSON.parse(localStorage[key]);
+                } catch (e) {}
+                return def;
+            };
+        };
+    };
 }

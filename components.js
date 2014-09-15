@@ -1,15 +1,13 @@
+'use strict';
+
 var Todos = flight.component(
     withState,
     makeWithProvideResources(['todos']),
+    makeWithStorage(['todos']),
     asSingleton('todos'),
     function () {
         this.initialState({
-            todos: [
-                { id: 'Uda', text: 'Make Flight amazing', done: false },
-                { id: 'ctS', text: 'Drink more water', done: true },
-                { id: 'LKP', text: 'Think about lunch', done: true },
-                { id: 'Fmg', text: 'Have lunch', done: false }
-            ]
+            todos: this.fromStorage('todos', [])
         });
 
         this.after('initialize', function () {
@@ -28,14 +26,14 @@ var Todos = flight.component(
                     todos: this.state.todos.concat([{
                         text: data.text,
                         id: '' + ~~(Math.random() * 10000),
-                        done: false
+                        done: data.done,
+                        added: Date.now()
                     }])
                 });
             });
 
-            this.after('setState', function () {
-                this.setResources(this.state);
-            });
+            this.after('setState', this.setResources);
+            this.after('setState', this.setStorage);
         });
     }
 );
@@ -49,7 +47,7 @@ var TodoList = flight.component(
     withBatchedUpdates,
     withChildComponents,
     withReferences,
-    withDeclaritiveHandlers,
+    withDeclarativeHandlers,
     function todoList() {
         this.initialState({
             todos: [],
@@ -60,13 +58,13 @@ var TodoList = flight.component(
             this.linkResource('todos', this.toState('todos'));
         });
 
-        this.setupRender('doneCounter', {
+        this.setupRender('todoCounter', {
             text: function () {
                 return this.state.todos.reduce(function (sum, todo) {
-                    return sum + (todo.done ? 1 : 0);
+                    return sum + (todo.done ? 0 : 1);
                 }, 0);
             }
-        })
+        });
 
         this.after('render', function () {
             this.state.todos.forEach(this.makeTodo, this);
@@ -74,22 +72,25 @@ var TodoList = flight.component(
 
         this.makeTodo = function (todo) {
             var $node = this.state.rendered[todo.id];
-            if (!$node) {
-                $node = $(this.renderTemplate('todo-list-item'));
-                this.select('list').append($node);
-                this.attachChild(TodoItem, $node, todo);
-                this.state.rendered[todo.id] = $node;
-                this.setState({
-                    rendered: this.state.rendered
-                });
-            }
+            if ($node) { return; }
+            $node = $(this.renderTemplate('todo-list-item'));
+            this.select('list').append($node);
+            this.attachChild(TodoItem, $node, todo);
+            this.state.rendered[todo.id] = $node;
+            this.setState({
+                rendered: this.state.rendered
+            });
         };
 
         this.handleCreateTodo = function () {
+            var text = this.select('newText').val().trim();
+            if (!text) { return; }
             this.trigger('todoNew', {
-                text: this.select('newText').val()
+                text: this.select('newText').val(),
+                done: this.select('newDone').prop('checked')
             });
             this.select('newText').focus().val('');
+            this.select('newDone').prop('checked', false);
         };
 
         this.handleKeyPress = function (e) {
@@ -109,26 +110,31 @@ var TodoItem = flight.component(
     withStateLinkedToRender,
     withBatchedUpdates,
     withReferences,
-    withDeclaritiveHandlers,
+    withDeclarativeHandlers,
+    withTimeout,
     function todoItem() {
         this.attributes({
             id: null,
             text: null,
-            done: false
+            done: null,
+            added: null
         });
 
         this.initialState({
-            done: this.fromAttr('done')
+            done: this.fromAttr('done'),
+            text: this.fromAttr('text'),
+            added: this.fromAttr('added'),
         });
 
         this.setupRender({
             attr: {
-                'data-ref': this.fromAttr('id')
+                'data-ref': this.fromAttr('id'),
+                'data-done': this.fromState('done')
             }
         });
 
         this.setupRender('todoText', {
-            text: this.fromAttr('text')
+            text: this.fromState('text')
         });
 
         this.setupRender('todoDone', {
@@ -137,20 +143,28 @@ var TodoItem = flight.component(
             }
         });
 
+        this.setupRender('todoRelativeTime', {
+            text: function () {
+                return moment(this.state.added).fromNow(true);
+            }
+        });
+
         this.after('initialize', function () {
             this.linkResource('todos', function (todos) {
                 todos.filter(function (todo) {
                     return (todo.id === this.attr.id);
                 }, this).forEach(function (todo) {
-                    this.setState(todo)
+                    this.setState(todo);
                 }, this);
             });
+
+            this.interval('render', 1000 * 30);
         });
 
         this.handleDoneChanged = function (event) {
             this.trigger('todoDone', {
                 id: this.attr.id,
-                done: event.target.checked
+                done: this.select('todoDone').get(0).checked
             });
         };
     }
