@@ -171,9 +171,12 @@ function withRender() {
                         var oldValue = (previousRenderState ? previousRenderState.state[k] : undefined);
                         var newValue = newRenderState.state[k];
                         if (oldValue !== newValue && typeof $node[k] === 'function') {
-                            return actions.concat(
-                                callTo($node, k, newValue)
-                            );
+                            return actions.concat(function () {
+                                if (!Array.isArray(newValue)) {
+                                    newValue = [newValue];
+                                }
+                                return $node[k].apply($node, newValue);
+                            });
                         }
                         return actions;
                     }, actions);
@@ -182,15 +185,22 @@ function withRender() {
         this._prevRenderStates = newRenderStates;
     };
 
+    this.produceRenderStateValue = function (value) {
+        if (typeof value === 'function') {
+            return value.call(this);
+        }
+        if (typeof value === 'object' && !Array.isArray(value)) {
+            return this.calculateRenderState(value);
+        }
+        if (Array.isArray(value)) {
+            return value.map(this.produceRenderStateValue, this);
+        }
+        return value;
+    };
+
     this.calculateRenderState = function (renderConfig) {
         return Object.keys(renderConfig).reduce(function (memo, k) {
-            var value = renderConfig[k];
-            if (typeof value === 'function') {
-                memo[k] = value.call(this);
-            }
-            if (typeof value === 'object' && !Array.isArray(value)) {
-                memo[k] = this.calculateRenderState(value);
-            }
+            memo[k] = this.produceRenderStateValue(renderConfig[k]);
             return memo;
         }.bind(this), {});
     };

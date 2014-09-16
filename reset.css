@@ -22,7 +22,7 @@ input[type=text]:focus {
     outline: none;
 }
 
-button {
+.btn {
     border-radius: 2px;
     position: relative;
     display: inline-block;
@@ -34,8 +34,44 @@ button {
     text-decoration: none;
     font: 15px/1.5 Gotham Narrow, sans-serif;
     font-weight: normal;
-    border: 1px solid #3b94d9;
-    color: white;
-    background-color: #55acee;
+    background-color: #e1e8ed;
+    color: #292f33;
+    border: 2px solid #ccd6dd;
     text-shadow: none;
+    transition: all 50ms linear;
 }
+
+.btn:hover,
+.btn:focus {
+    border-color: #aab8c2;
+    outline: none;
+}
+
+.btn:active{
+    border-color: #8899a6;
+    outline: none;
+}
+
+.btn-positive {
+    background-color: #55acee;
+    border-color: #3b94d9;
+    color: white;
+}
+.btn-positive:hover,
+.btn-positive:focus {
+    background-color: #3b94d9;
+    border-color: #55acee;
+}
+.btn-positive:active {
+    background-color: #3b94d9;
+    border-color: #1c6399;
+}
+
+[data-loading=loading] {
+    background-image: url(loading-bars.svg);
+    color: transparent;
+    background-size: contain;
+    background-position: center center;
+    background-repeat: no-repeat;
+}
+
