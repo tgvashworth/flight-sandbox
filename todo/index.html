@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<meta charset=utf-8 />
+<title></title>
+
+<meta name="viewport" content="width=device-width">
+<link rel="stylesheet" type="text/css" href="../reset.css">
+<link rel="stylesheet" type="text/css" href="todo.css">
+
+<div class="todo-list">
+    <div class="todo-list__title">
+        <strong data-ref="todoCounter">0</strong> todo
+    </div>
+    <ul data-ref="list"></ul>
+    <div class="todo-list__new">
+        <input data-ref="newText" data-action="keypress:handleKeyPress" type="text"/>
+        <input data-ref="newDone" type="checkbox"/>
+        <button data-ref="newButton" data-action="handleCreateTodo">+</button>
+    </div>
+</div>
+
+<script type="template" id="template-todo-list-item">
+    <li class="todo-item"></li>
+</script>
+
+<script type="template" id="template-todo-list-item-content">
+    <div class="todo-list-item-content" data-action="handleDoneChanged">
+        <span data-ref="todoDelete" data-action="handleDelete">&times;</span>
+        <label>
+            <span data-ref="todoRelativeTime"></span>
+            <input data-ref="todoDone" type="checkbox">
+            <span data-ref="todoText" data-strike></span>
+        </label>
+    </div>
+</script>
+
+<script src="../jquery.min.js"></script>
+<script src="../moment.min.js"></script>
+<script src="../flight.js"></script>
+<script src="../mixins.js"></script>
+<script src="todo.js"></script>
+
+<script type="text/javascript">
+document.addEventListener('DOMContentLoaded', function () {
+    Todos.attachTo(document);
+    TodoList.attachTo('.todo-list');
+});
+
+/**
+ * Random Ideas
+ *
+ * Higher order mixins are interesting — could they be used for all the state & attrs stuff:
+ *     makeWithState({ ... }),
+ *     makeWithAttributes({ ... })
+ *
+ * Auto put data attributes in declarative events
+ *
+ */
+
+</script>
+

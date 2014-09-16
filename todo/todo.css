@@ -1,0 +1,72 @@
+.todo-list__title {
+    margin-bottom: 1em;
+}
+.todo-list__new {
+    display: flex;
+    align-items: center;
+    max-width: 22em;
+}
+.todo-list__new input[type=text] {
+    flex: 1;
+}
+.todo-list__new input[type=checkbox] {
+    margin: 0 1em;
+}
+
+.todo-list ul {
+    list-style: none;
+    padding-left: 0;
+    margin: 0 0 1em;
+}
+
+.todo-item {
+    transition: all 50ms linear;
+    clear: both;
+}
+
+[data-ref="todoText"] {
+    overflow: hidden;
+    word-break: break-all;
+}
+[data-ref="todoDone"] {
+    margin: 0;
+}
+[data-ref="todoRelativeTime"] {
+    display: block;
+    font-size: .667em;
+    padding-top: 0.444em;
+    float: right;
+    color: #8899a6;
+    margin-left: 1em;
+}
+[data-ref="todoDelete"] {
+    display: block;
+    color: #f4abba;
+    float: right;
+    display: none;
+    line-height: 1;
+    font-size: 1.5em;
+    margin-left: 1em;
+}
+
+[data-done] {
+    opacity: 1;
+}
+[data-deleted=true] {
+    display: none;
+}
+
+[data-done=true] .todo-list-item-content label {
+    -webkit-filter: blur(1px) grayscale(0.5) opacity(0.4);
+}
+
+[data-done=true] [data-ref="todoRelativeTime"] {
+    display: none;
+}
+
+[data-done=true] [data-ref="todoDelete"] {
+    display: block;
+}
+
+[data-done=true] [data-strike] {
+}

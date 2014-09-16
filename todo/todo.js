@@ -21,13 +21,24 @@ var Todos = flight.component(
                     })
                 });
             });
+            this.on('todoToggle', function (e, data) {
+                this.setState({
+                    todos: this.state.todos.map(function (todo) {
+                        if (todo.id === data.id) {
+                            todo.deleted = data.deleted;
+                        }
+                        return todo;
+                    })
+                });
+            });
             this.on('todoNew', function (e, data) {
                 this.setState({
                     todos: this.state.todos.concat([{
                         text: data.text,
                         id: '' + ~~(Math.random() * 10000),
                         done: data.done,
-                        added: Date.now()
+                        added: Date.now(),
+                        deleted: false
                     }])
                 });
             });
@@ -72,7 +83,9 @@ var TodoList = flight.component(
 
         this.makeTodo = function (todo) {
             var $node = this.state.rendered[todo.id];
-            if ($node) { return; }
+            if ($node) {
+                return $node.attr('data-deleted', todo.deleted);
+            }
             $node = $(this.renderTemplate('todo-list-item'));
             this.select('list').append($node);
             this.attachChild(TodoItem, $node, todo);
@@ -117,13 +130,15 @@ var TodoItem = flight.component(
             id: null,
             text: null,
             done: null,
-            added: null
+            added: null,
+            deleted: false
         });
 
         this.initialState({
             done: this.fromAttr('done'),
             text: this.fromAttr('text'),
             added: this.fromAttr('added'),
+            deleted: this.fromAttr('deleted')
         });
 
         this.setupRender({
@@ -151,11 +166,11 @@ var TodoItem = flight.component(
 
         this.after('initialize', function () {
             this.linkResource('todos', function (todos) {
-                todos.filter(function (todo) {
-                    return (todo.id === this.attr.id);
-                }, this).forEach(function (todo) {
-                    this.setState(todo);
-                }, this);
+                todos
+                    .filter(function (todo) {
+                        return (todo.id === this.attr.id);
+                    }, this)
+                    .forEach(this.setState, this);
             });
 
             this.interval('render', 1000 * 30);
@@ -165,6 +180,13 @@ var TodoItem = flight.component(
             this.trigger('todoDone', {
                 id: this.attr.id,
                 done: this.select('todoDone').get(0).checked
+            });
+        };
+
+        this.handleDelete = function (event) {
+            this.trigger('todoToggle', {
+                id: this.attr.id,
+                deleted: true
             });
         };
     }
