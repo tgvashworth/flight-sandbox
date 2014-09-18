@@ -306,27 +306,30 @@ function withTimeout() {
     };
 }
 
-function withBatchedUpdates() {
+var withBatchedUpdates = (function () {
     var queue = [];
     function go() {
         while (queue.length) {
             queue.shift().call(queue.shift());
         }
     }
-    this.batch = function (fn) {
-        var len = queue.length;
-        queue.push(fn, this);
-        if (!len) {
-            requestAnimationFrame(go);
-        }
-    };
-    this.batchify = function (method) {
-        var ctx = this;
-        return function () {
-            return ctx.batch(ctx[method]);
+
+    return function withBatchedUpdates() {
+        this.batch = function (fn) {
+            var len = queue.length;
+            queue.push(fn, this);
+            if (!len) {
+                requestAnimationFrame(go);
+            }
+        };
+        this.batchify = function (method) {
+            var ctx = this;
+            return function () {
+                return ctx.batch(ctx[method]);
+            };
         };
     };
-}
+}());
 
 /**
  * Resources
@@ -376,6 +379,78 @@ function makeWithResources(keys) {
         };
     };
 }
+
+/**
+ * Channel
+ */
+
+var withChannels = (function () {
+    function callListenerWith(v) {
+        return function (l) {
+            if (l && typeof l.cb === 'function') {
+                return l.cb.call(l.ctx, v);
+            }
+        };
+    }
+
+    function chan(id, dispatcher) {
+        return {
+            id: id,
+            listeners: [],
+            dispatcher: dispatcher || function (v, ls) {
+                return ls.map(callListenerWith(v));
+            }
+        };
+    }
+
+    function match(o, matcher) {
+        if (!matcher || typeof matcher !== 'object' || Object.keys(matcher) === 0) {
+            return true;
+        }
+        return Object.keys(matcher).every(function (k) {
+            return o[k] === matcher[k];
+        });
+    }
+
+    var channels = {};
+    return function withChannels() {
+        this.channelOpen = function (id, dispatcher) {
+            if (channels[id]) throw Error('Channel ' + id + ' already exists.');
+            channels[id] = chan(id, dispatcher);
+        };
+
+        this.channelPut = function (id, data) {
+            var c = channels[id];
+            if (!c) throw Error('Channel ' + id + ' does not exist.');
+            c.dispatcher(data, c.listeners);
+        };
+
+        this.channelListen = function (id, params, cb, ctx) {
+            var c = channels[id];
+            if (!c) throw Error('Channel ' + id + ' does not exist.');
+            c.listeners.push({
+                params: params,
+                cb: cb,
+                ctx: ctx
+            });
+        };
+
+        this.channelParamMatchDispatcher = function (v, listeners) {
+            return listeners.filter(function (l) {
+                return match(v, l.params);
+            }).forEach(callListenerWith(v));
+        };
+
+        this.channelArrayParamMatchDispatcher = function (arr, listeners) {
+            if (!Array.isArray(arr)) return;
+            return arr.forEach(function (v) {
+                return listeners.filter(function (l) {
+                    return match(v, l.params);
+                }).forEach(callListenerWith(v));
+            });
+        };
+    };
+}());
 
 
 /**

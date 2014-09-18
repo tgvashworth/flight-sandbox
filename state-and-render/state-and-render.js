@@ -1,6 +1,7 @@
 var FollowButton = flight.component(
     withState,
     withRender,
+    withBatchedUpdates,
     function () {
         this.attributes({
             id: null,
@@ -29,7 +30,7 @@ var FollowButton = flight.component(
         this.after('initialize', function () {
             this.on(document, 'follow-change', this.handleFollowChange)
             this.on('click', this.handleClick);
-            this.after('setState', this.render);
+            this.after('setState', this.batchify('render'));
         });
 
         this.handleFollowChange = function (e, data) {

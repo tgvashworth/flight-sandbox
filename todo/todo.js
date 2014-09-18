@@ -2,7 +2,7 @@
 
 var Todos = flight.component(
     withState,
-    makeWithProvideResources(['todos']),
+    withChannels,
     makeWithStorage(['todos']),
     asSingleton('todos'),
     function () {
@@ -11,6 +11,10 @@ var Todos = flight.component(
         });
 
         this.after('initialize', function () {
+            this.channelOpen('todos', this.channelParamMatchDispatcher);
+            this.channelOpen('todos/:id', this.channelArrayParamMatchDispatcher);
+            this.channelListen('todos', {}, this.channelPut.bind(this, 'todos/:id'));
+
             this.on('todoDone', function (e, data) {
                 this.setState({
                     todos: this.state.todos.map(function (todo) {
@@ -43,14 +47,16 @@ var Todos = flight.component(
                 });
             });
 
-            this.after('setState', this.setResources);
+            this.after('setState', function () {
+                this.channelPut('todos', this.state.todos);
+            });
             this.after('setState', this.setStorage);
         });
     }
 );
 
 var TodoList = flight.component(
-    makeWithResources(['todos']),
+    withChannels,
     withTemplate,
     withState,
     withRender,
@@ -66,7 +72,7 @@ var TodoList = flight.component(
         });
 
         this.after('initialize', function () {
-            this.linkResource('todos', this.toState('todos'));
+            this.channelListen('todos', {}, this.toState('todos'), this);
         });
 
         this.setupRender('todoCounter', {
@@ -78,6 +84,7 @@ var TodoList = flight.component(
         });
 
         this.after('render', function () {
+            console.log('todo list rendered');
             this.state.todos.forEach(this.makeTodo, this);
         });
 
@@ -115,7 +122,7 @@ var TodoList = flight.component(
 );
 
 var TodoItem = flight.component(
-    makeWithResources(['todos']),
+    withChannels,
     withTemplate,
     makeWithAutoRenderedTemplate('todo-list-item-content'),
     withState,
@@ -165,15 +172,11 @@ var TodoItem = flight.component(
         });
 
         this.after('initialize', function () {
-            this.linkResource('todos', function (todos) {
-                todos
-                    .filter(function (todo) {
-                        return (todo.id === this.attr.id);
-                    }, this)
-                    .forEach(this.setState, this);
-            });
-
+            this.channelListen('todos/:id', { id: this.attr.id }, this.setState, this);
             this.interval('render', 1000 * 30);
+            this.after('render', function () {
+                console.log('todo item renderd', this.state.text);
+            });
         });
 
         this.handleDoneChanged = function (event) {
